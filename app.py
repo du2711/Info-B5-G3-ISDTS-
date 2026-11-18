@@ -3,8 +3,9 @@
 import os
 import click
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, url_for
 from flask_login import current_user
+from markupsafe import Markup, escape
 from config import config
 from extensions import db, login_manager, csrf
 from routes import register_blueprints
@@ -30,6 +31,14 @@ def create_app(config_name=None):
     # Register blueprints
     register_blueprints(app)
 
+    # Custom Jinja2 filters
+    @app.template_filter('nl2br')
+    def nl2br_filter(value):
+        if not value:
+            return ''
+        escaped = escape(str(value))
+        return Markup(escaped.replace('\r\n', '<br>').replace('\n', '<br>'))
+
     # Context processors
     @app.context_processor
     def inject_global_data():
@@ -41,11 +50,17 @@ def create_app(config_name=None):
             except Exception:
                 unread_notifications = 0
 
+        def url_for_page(page_num):
+            args = request.args.to_dict(flat=True)
+            args['page'] = page_num
+            return url_for(request.endpoint, **args)
+
         return {
             'now': datetime.utcnow(),
             'unread_notifications_count': unread_notifications,
             'app_name': 'IntelliTrack',
             'current_year': datetime.utcnow().year,
+            'url_for_page': url_for_page,
         }
 
     # Security headers
